@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Portsmouth → Jersey – 5-Day Boat Weather</title>
 
-    <!-- Leaflet CSS for small route map -->
+    <!-- Leaflet CSS -->
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -43,7 +43,6 @@
             margin: 0 auto;
         }
 
-        /* Small map area for selecting forecast point */
         #map {
             width: 100%;
             height: 220px;
@@ -117,7 +116,6 @@
             background-color: #e5f1ff;
         }
 
-        /* Thick black line between different dates */
         tr.new-date-separator td {
             border-top: 3px solid #000000 !important;
         }
@@ -196,7 +194,6 @@
 </div>
 
 <div class="card" id="forecast-card">
-    <!-- Small map for selecting forecast point (Portsmouth / Mid-Channel / St Helier) -->
     <div class="map-row">
         <div class="map-info">
             <div id="selected-point-name"></div>
@@ -240,7 +237,7 @@
 
 </div>
 
-<!-- Useful links OUTSIDE the screenshot area -->
+<!-- Reference links -->
 <div class="sources">
     <strong>Useful official links:</strong>
     <ul>
@@ -251,19 +248,16 @@
     </ul>
 </div>
 
-<!-- Leaflet JS for map -->
 <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     crossorigin=""
 ></script>
 
-<!-- html2canvas for screenshot generation -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 <script>
-    // ---- CONFIG ----
+    // ---- CONFIGURATION ----
 
-    // Multiple forecast points along the route
     var LOCATIONS = {
         portsmouth: {
             id: "portsmouth",
@@ -285,23 +279,20 @@
         }
     };
 
-    // Default forecast point = mid-channel
     var currentLocationId = "midchannel";
 
     function getCurrentLocation() {
         return LOCATIONS[currentLocationId];
     }
 
-    // Daytime thresholds (Morning + Midday)
     var WIND_SAFE_MAX_DAY = 12;
     var WAVE_SAFE_MAX_DAY = 1.0;
     var WIND_RED_MIN_DAY  = 25;
     var WAVE_RED_MIN_DAY  = 3.0;
 
-    // Overnight thresholds (stricter – based on DFDS cancellation pattern)
-    var WIND_SAFE_MAX_OVN = 12;  // still OK if calm
+    var WIND_SAFE_MAX_OVN = 12;
     var WAVE_SAFE_MAX_OVN = 1.0;
-    var WIND_RED_MIN_OVN  = 20;  // red sooner at night
+    var WIND_RED_MIN_OVN  = 20;
     var WAVE_RED_MIN_OVN  = 2.0;
 
     var DAYS = 5;
@@ -330,7 +321,6 @@
         return { f:12, d:"Hurricane" };
     }
 
-    // Risk now depends on periodId (overnight uses stricter thresholds)
     function riskFromWindAndWave(windKn, waveM, periodId) {
         var safeWind, safeWave, redWind, redWave;
 
@@ -454,26 +444,22 @@
                 var wh = waveArr[i];
                 var sw = swellArr[i];
 
-                // Highest wind in period
                 if (g.windMax === null || w > g.windMax) {
                     g.windMax = w;
                     g.windDir = windDirArr[i];
                 }
 
-                // Highest wave height in period
                 if (wh != null && (g.waveMax === null || wh > g.waveMax)) {
                     g.waveMax = wh;
                     g.waveDir = waveDirArr[i];
                 }
 
-                // Highest swell height in period
                 if (sw != null && (g.swellMax === null || sw > g.swellMax)) {
                     g.swellMax = sw;
                     g.swellDir = swellDirArr[i];
                 }
             }
 
-            // Add rows with thick separator between different dates
             var previousDate = null;
 
             Object.keys(grouped).sort().slice(0, DAYS).forEach(function(dateKey) {
@@ -491,7 +477,6 @@
                     var waveMax = stats.waveMax;
                     var swell = stats.swellMax;
 
-                    // Use the worst of wave/swell for risk and sea state
                     var combinedMax = Math.max(
                         waveMax != null ? waveMax : 0,
                         swell   != null ? swell   : 0
@@ -506,7 +491,6 @@
                     }
                     previousDate = dateKey;
 
-                    // Decide which to show first: higher of wave / swell
                     var waveText = (waveMax != null) ? waveMax.toFixed(2) + " m" : "n/a";
                     var swellText = (swell != null) ? swell.toFixed(2) + " m" : "n/a";
 
@@ -562,14 +546,13 @@
     }
 
     // ---- MAP INITIALISATION (Leaflet) ----
+
     var map;
     var mapMarkers = {};
 
-    // helper to set selected location, keep one permanent tooltip, and refresh data
     function setSelectedLocation(id) {
         currentLocationId = id;
 
-        // remove any existing tooltips from all markers
         Object.keys(mapMarkers).forEach(function(key) {
             var m = mapMarkers[key];
             if (m.getTooltip && m.getTooltip()) {
@@ -580,7 +563,6 @@
         var loc = LOCATIONS[id];
         var marker = mapMarkers[id];
 
-        // bind a permanent tooltip to the selected marker
         marker.bindTooltip(loc.name, {
             direction: 'left',
             permanent: true,
@@ -589,21 +571,19 @@
             opacity: 0.9
         }).openTooltip();
 
-        // refresh forecast for this point
         loadForecast();
     }
 
     function initMap() {
-        // Bounds roughly around south coast of England & Channel Islands
         var bounds = L.latLngBounds(
-            [48.5, -3.5],   // Southwest
-            [51.5, -0.5]    // Northeast
+            [48.5, -3.5],
+            [51.5, -0.5]
         );
 
         map = L.map('map', {
             maxBounds: bounds,
             maxBoundsViscosity: 1.0
-        }).setView([49.8, -2.0], 6);  // slightly zoomed out so all 3 markers are visible
+        }).setView([49.8, -2.0], 6);
 
         map.setMinZoom(5);
         map.setMaxZoom(11);
@@ -612,7 +592,6 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // Add markers for each forecast point
         Object.keys(LOCATIONS).forEach(function(id) {
             var loc = LOCATIONS[id];
             var marker = L.marker([loc.lat, loc.lon]).addTo(map);
@@ -624,11 +603,11 @@
             mapMarkers[id] = marker;
         });
 
-        // select default location (mid-channel) and show its tooltip + data
         setSelectedLocation(currentLocationId);
     }
 
-    // ---- HIGH RESOLUTION SCREENSHOT + EMAIL ----
+    // ---- IMAGE EXPORT & EMAIL TEMPLATE ----
+
     function downloadImageAndCreateEmail() {
         var card = document.getElementById("forecast-card");
 
@@ -673,7 +652,6 @@
     document.getElementById("refresh-btn").addEventListener("click", loadForecast);
     document.getElementById("email-btn").addEventListener("click", downloadImageAndCreateEmail);
 
-    // Initialise map (this will also set default location and load its forecast)
     initMap();
 </script>
 
