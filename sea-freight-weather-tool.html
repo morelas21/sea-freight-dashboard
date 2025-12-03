@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Portsmouth → Jersey – 5-Day Boat Weather</title>
+
+    <!-- Leaflet CSS for small route map -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossorigin=""
+    />
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 20px;
+            color: #1f2933;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            margin-top: 0.2rem;
+            margin-bottom: 0.2rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .card {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+            max-width: 1250px;
+            margin: 0 auto;
+        }
+
+        /* Small map area for selecting forecast point */
+        #map {
+            width: 100%;
+            height: 220px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .controls-left,
+        .controls-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: #1d4ed8;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .timestamp {
+            font-size: 0.8rem;
+            color: #4b5563;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        thead {
+            background-color: #111827;
+            color: #f9fafb;
+        }
+
+        th, td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        tbody tr:hover {
+            background-color: #e5f1ff;
+        }
+
+        /* Thick black line between different dates */
+        tr.new-date-separator td {
+            border-top: 3px solid #000000 !important;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .tag-safe { background-color: #16a34a; }
+        .tag-amber { background-color: #f59e0b; }
+        .tag-red { background-color: #dc2626; }
+
+        .error {
+            color: #b91c1c;
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        .sources {
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            max-width: 1250px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .sources a {
+            color: #1d4ed8;
+            text-decoration: none;
+        }
+
+        .sources a:hover {
+            text-decoration: underline;
+        }
+
+        .map-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .map-info {
+            width: 33%;
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        #map {
+            width: 67%;
+            height: 220px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Portsmouth → Jersey</h1>
+<h1>5-Day Weather Forecast</h1>
+
+<div style="text-align:center; font-size:1.5rem; color:#374151; margin-top:4px; margin-bottom:12px;">
+</div>
+
+<div class="subtitle">
+    Time windows used in this table:<br>
+    <strong>Morning:</strong> 06:00–11:59 &nbsp;|&nbsp;
+    <strong>Midday:</strong> 12:00–17:59 &nbsp;|&nbsp;
+    <strong>Overnight:</strong> 18:00–05:59 (includes 18:00–23:59 on the same date and 00:00–05:59 of the following date)
+</div>
+
+<div class="card" id="forecast-card">
+    <!-- Small map for selecting forecast point (Portsmouth / Mid-Channel / St Helier) -->
+    <div class="map-row">
+        <div class="map-info">
+            <div id="selected-point-name"></div>
+            <div id="selected-point-coords"></div>
+            <div style="margin-top:6px; font-size:0.8rem; color:#6b7280;">
+                Click a point on the map to update the forecast.
+            </div>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <div class="controls">
+        <div class="controls-left">
+            <button id="refresh-btn">Refresh forecast</button>
+            <div class="timestamp">
+                Last refreshed: <span id="last-updated">Not yet refreshed</span>
+            </div>
+        </div>
+        <div class="controls-right">
+            <button id="email-btn" disabled>Download table &amp; create email</button>
+        </div>
+    </div>
+
+    <div id="error-message" class="error" style="display:none;"></div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Time window</th>
+            <th>Route</th>
+            <th>Wind (highest in period)</th>
+            <th>Waves &amp; swell (highest in period)</th>
+            <th>Sea state</th>
+            <th>Risk</th>
+        </tr>
+        </thead>
+        <tbody id="forecast-body"></tbody>
+    </table>
+
+</div>
+
+<!-- Useful links OUTSIDE the screenshot area -->
+<div class="sources">
+    <strong>Useful official links:</strong>
+    <ul>
+        <li><a href="https://www.gov.je/weather/shipping/" target="_blank">Jersey Met – Shipping Forecast</a></li>
+        <li><a href="https://www.ports.je/weather/" target="_blank">Ports of Jersey – Weather &amp; Tides</a></li>
+        <li><a href="https://www.windfinder.com/forecast/st_helier_jersey" target="_blank">Windfinder – St Helier</a></li>
+        <li><a href="https://www.tide-forecast.com/locations/Saint-Helier-Jersey-Channel-Islands/forecasts/latest" target="_blank">Tide-Forecast – St Helier</a></li>
+    </ul>
+</div>
+
+<!-- Leaflet JS for map -->
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+></script>
+
+<!-- html2canvas for screenshot generation -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script>
+    // ---- CONFIG ----
+
+    // Multiple forecast points along the route
+    var LOCATIONS = {
+        portsmouth: {
+            id: "portsmouth",
+            name: "Portsmouth harbour area",
+            lat: 50.800,
+            lon: -1.100
+        },
+        midchannel: {
+            id: "midchannel",
+            name: "Mid-Channel forecast point",
+            lat: 50.000,
+            lon: -1.600
+        },
+        sthelier: {
+            id: "sthelier",
+            name: "St Helier approaches",
+            lat: 49.180,
+            lon: -2.110
+        }
+    };
+
+    // Default forecast point = mid-channel
+    var currentLocationId = "midchannel";
+
+    function getCurrentLocation() {
+        return LOCATIONS[currentLocationId];
+    }
+
+    // Daytime thresholds (Morning + Midday)
+    var WIND_SAFE_MAX_DAY = 12;
+    var WAVE_SAFE_MAX_DAY = 1.0;
+    var WIND_RED_MIN_DAY  = 25;
+    var WAVE_RED_MIN_DAY  = 3.0;
+
+    // Overnight thresholds (stricter – based on DFDS cancellation pattern)
+    var WIND_SAFE_MAX_OVN = 12;  // still OK if calm
+    var WAVE_SAFE_MAX_OVN = 1.0;
+    var WIND_RED_MIN_OVN  = 20;  // red sooner at night
+    var WAVE_RED_MIN_OVN  = 2.0;
+
+    var DAYS = 5;
+
+    var PERIODS = [
+        { id: "morning",   label: "Morning",  start:  6, end: 12 },
+        { id: "midday",    label: "Midday",   start: 12, end: 18 },
+        { id: "overnight", label: "Overnight", start: 18, end: 30 }
+    ];
+
+    function knToMph(kn) { return kn * 1.15078; }
+
+    function beaufortFromKn(kn) {
+        if (kn < 1)  return { f:0, d:"Calm" };
+        if (kn < 4)  return { f:1, d:"Light air" };
+        if (kn < 7)  return { f:2, d:"Light breeze" };
+        if (kn < 11) return { f:3, d:"Gentle breeze" };
+        if (kn < 17) return { f:4, d:"Moderate breeze" };
+        if (kn < 22) return { f:5, d:"Fresh breeze" };
+        if (kn < 28) return { f:6, d:"Strong breeze" };
+        if (kn < 34) return { f:7, d:"Near gale" };
+        if (kn < 41) return { f:8, d:"Gale" };
+        if (kn < 48) return { f:9, d:"Strong gale" };
+        if (kn < 56) return { f:10, d:"Storm" };
+        if (kn < 64) return { f:11, d:"Violent storm" };
+        return { f:12, d:"Hurricane" };
+    }
+
+    // Risk now depends on periodId (overnight uses stricter thresholds)
+    function riskFromWindAndWave(windKn, waveM, periodId) {
+        var safeWind, safeWave, redWind, redWave;
+
+        if (periodId === "overnight") {
+            safeWind = WIND_SAFE_MAX_OVN;
+            safeWave = WAVE_SAFE_MAX_OVN;
+            redWind  = WIND_RED_MIN_OVN;
+            redWave  = WAVE_RED_MIN_OVN;
+        } else {
+            safeWind = WIND_SAFE_MAX_DAY;
+            safeWave = WAVE_SAFE_MAX_DAY;
+            redWind  = WIND_RED_MIN_DAY;
+            redWave  = WAVE_RED_MIN_DAY;
+        }
+
+        if (windKn > redWind || waveM > redWave) {
+            return { lvl: "red",   txt: "High – disruption likely" };
+        }
+        if (windKn <= safeWind && waveM <= safeWave) {
+            return { lvl: "safe",  txt: "Low – normal operations" };
+        }
+        return { lvl: "amber",     txt: "Moderate – possible delay" };
+    }
+
+    function bearingToCompass(deg) {
+        if (deg == null || isNaN(deg)) return "n/a";
+        var dirs = ["N","NE","E","SE","S","SW","W","NW"];
+        return dirs[Math.round(deg / 45) % 8] + " (" + Math.round(deg) + "°)";
+    }
+
+    function seaStateFromWaveHeight(h) {
+        if (h < 0.5)  return "Calm / slight";
+        if (h < 1.25) return "Slight";
+        if (h < 2.5)  return "Moderate";
+        if (h < 4.0)  return "Rough";
+        return "Very rough";
+    }
+
+    function updateTimestamp() {
+        document.getElementById("last-updated").textContent =
+            new Date().toLocaleString("en-GB", { timeZone: "Europe/Jersey" });
+    }
+
+    function getWindowHour(dateObj) {
+        var h = dateObj.getHours();
+        return (h < 6) ? h + 24 : h;
+    }
+
+    function periodForHour(hour) {
+        for (var i = 0; i < PERIODS.length; i++)
+            if (hour >= PERIODS[i].start && hour < PERIODS[i].end) return PERIODS[i].id;
+        return null;
+    }
+
+    async function loadForecast() {
+        var btn = document.getElementById("refresh-btn");
+        var emailBtn = document.getElementById("email-btn");
+        var tbody = document.getElementById("forecast-body");
+        var errorDiv = document.getElementById("error-message");
+        var loc = getCurrentLocation();
+
+        document.getElementById("selected-point-name").innerHTML =
+            "<strong>Selected forecast point:</strong><br>" + loc.name;
+
+        document.getElementById("selected-point-coords").innerHTML =
+            "<strong>Coordinates:</strong><br>" +
+            loc.lat.toFixed(3) + "° N, " + Math.abs(loc.lon.toFixed(3)) +
+            "° " + (loc.lon < 0 ? "W" : "E");
+
+        btn.disabled = true;
+        emailBtn.disabled = true;
+        btn.textContent = "Refreshing…";
+        errorDiv.style.display = "none";
+        tbody.innerHTML = "";
+
+        try {
+            var marineUrl =
+                "https://marine-api.open-meteo.com/v1/marine?" +
+                "latitude=" + loc.lat + "&longitude=" + loc.lon +
+                "&hourly=wave_height,swell_wave_height,wave_direction,swell_wave_direction" +
+                "&timezone=auto&forecast_days=" + DAYS + "&cell_selection=sea";
+
+            var windUrl =
+                "https://api.open-meteo.com/v1/forecast?" +
+                "latitude=" + loc.lat + "&longitude=" + loc.lon +
+                "&hourly=windspeed_10m,winddirection_10m" +
+                "&wind_speed_unit=kn&timezone=auto&forecast_days=" + DAYS;
+
+            var responses = await Promise.all([fetch(marineUrl), fetch(windUrl)]);
+            var marine = await responses[0].json();
+            var wind = await responses[1].json();
+
+            var times = marine.hourly.time;
+            var waveArr = marine.hourly.wave_height;
+            var swellArr = marine.hourly.swell_wave_height;
+            var waveDirArr = marine.hourly.wave_direction;
+            var swellDirArr = marine.hourly.swell_wave_direction;
+            var windArr = wind.hourly.windspeed_10m;
+            var windDirArr = wind.hourly.winddirection_10m;
+
+            var grouped = {};
+
+            for (var i = 0; i < times.length; i++) {
+                var t = new Date(times[i]);
+                var dateKey = times[i].slice(0, 10);
+                var windowHour = getWindowHour(t);
+                var periodId = periodForHour(windowHour);
+                if (!periodId) continue;
+
+                if (!grouped[dateKey]) grouped[dateKey] = {};
+                if (!grouped[dateKey][periodId]) {
+                    grouped[dateKey][periodId] = {
+                        windMax: null, windDir: null,
+                        waveMax: null, swellMax: null,
+                        waveDir: null, swellDir: null
+                    };
+                }
+
+                var g = grouped[dateKey][periodId];
+                var w = windArr[i];
+                var wh = waveArr[i];
+                var sw = swellArr[i];
+
+                // Highest wind in period
+                if (g.windMax === null || w > g.windMax) {
+                    g.windMax = w;
+                    g.windDir = windDirArr[i];
+                }
+
+                // Highest wave height in period
+                if (wh != null && (g.waveMax === null || wh > g.waveMax)) {
+                    g.waveMax = wh;
+                    g.waveDir = waveDirArr[i];
+                }
+
+                // Highest swell height in period
+                if (sw != null && (g.swellMax === null || sw > g.swellMax)) {
+                    g.swellMax = sw;
+                    g.swellDir = swellDirArr[i];
+                }
+            }
+
+            // Add rows with thick separator between different dates
+            var previousDate = null;
+
+            Object.keys(grouped).sort().slice(0, DAYS).forEach(function(dateKey) {
+                var dateLabel = new Date(dateKey + "T00:00:00").toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "short"
+                });
+
+                PERIODS.forEach(function(period) {
+                    var stats = grouped[dateKey][period.id];
+                    if (!stats || stats.windMax === null) return;
+
+                    var windKn = stats.windMax;
+                    var waveMax = stats.waveMax;
+                    var swell = stats.swellMax;
+
+                    // Use the worst of wave/swell for risk and sea state
+                    var combinedMax = Math.max(
+                        waveMax != null ? waveMax : 0,
+                        swell   != null ? swell   : 0
+                    );
+
+                    var bf = beaufortFromKn(windKn);
+                    var risk = riskFromWindAndWave(windKn, combinedMax, period.id);
+
+                    var rowClass = "";
+                    if (previousDate !== null && previousDate !== dateKey) {
+                        rowClass = "new-date-separator";
+                    }
+                    previousDate = dateKey;
+
+                    // Decide which to show first: higher of wave / swell
+                    var waveText = (waveMax != null) ? waveMax.toFixed(2) + " m" : "n/a";
+                    var swellText = (swell != null) ? swell.toFixed(2) + " m" : "n/a";
+
+                    var firstLine, secondLine;
+                    if ((swell || 0) > (waveMax || 0)) {
+                        firstLine  = "Swell: " + swellText;
+                        secondLine = "Wave: " + waveText;
+                    } else {
+                        firstLine  = "Wave: " + waveText;
+                        secondLine = "Swell: " + swellText;
+                    }
+
+                    tbody.innerHTML += `
+                        <tr class="${rowClass}">
+                            <td><strong>${dateLabel}</strong></td>
+                            <td>${period.label}</td>
+                            <td>Portsmouth → Jersey<br>
+                                <span style="font-size:0.75rem;color:#6b7280;">
+                                    Forecast point: ${loc.name}
+                                </span>
+                            </td>
+                            <td>
+                                ${windKn.toFixed(1)} kn<br>
+                                ${knToMph(windKn).toFixed(1)} mph<br>
+                                Beaufort ${bf.f} – ${bf.d}<br>
+                                Dir: ${bearingToCompass(stats.windDir)}
+                            </td>
+                            <td>
+                                ${firstLine}<br>
+                                ${secondLine}<br>
+                                Wave dir: ${bearingToCompass(stats.waveDir)}<br>
+                                Swell dir: ${bearingToCompass(stats.swellDir)}
+                            </td>
+                            <td>${seaStateFromWaveHeight(combinedMax)}</td>
+                            <td><span class="tag tag-${risk.lvl}">${risk.txt}</span></td>
+                        </tr>`;
+                });
+            });
+
+            updateTimestamp();
+
+            if (tbody.children.length > 0) {
+                emailBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error(error);
+            errorDiv.textContent = "Unable to load forecast data.";
+            errorDiv.style.display = "block";
+        }
+
+        btn.disabled = false;
+        btn.textContent = "Refresh forecast";
+    }
+
+    // ---- MAP INITIALISATION (Leaflet) ----
+    var map;
+    var mapMarkers = {};
+
+    // helper to set selected location, keep one permanent tooltip, and refresh data
+    function setSelectedLocation(id) {
+        currentLocationId = id;
+
+        // remove any existing tooltips from all markers
+        Object.keys(mapMarkers).forEach(function(key) {
+            var m = mapMarkers[key];
+            if (m.getTooltip && m.getTooltip()) {
+                m.unbindTooltip();
+            }
+        });
+
+        var loc = LOCATIONS[id];
+        var marker = mapMarkers[id];
+
+        // bind a permanent tooltip to the selected marker
+        marker.bindTooltip(loc.name, {
+            direction: 'left',
+            permanent: true,
+            sticky: false,
+            offset: L.point(-10, 0),
+            opacity: 0.9
+        }).openTooltip();
+
+        // refresh forecast for this point
+        loadForecast();
+    }
+
+    function initMap() {
+        // Bounds roughly around south coast of England & Channel Islands
+        var bounds = L.latLngBounds(
+            [48.5, -3.5],   // Southwest
+            [51.5, -0.5]    // Northeast
+        );
+
+        map = L.map('map', {
+            maxBounds: bounds,
+            maxBoundsViscosity: 1.0
+        }).setView([49.8, -2.0], 6);  // slightly zoomed out so all 3 markers are visible
+
+        map.setMinZoom(5);
+        map.setMaxZoom(11);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Add markers for each forecast point
+        Object.keys(LOCATIONS).forEach(function(id) {
+            var loc = LOCATIONS[id];
+            var marker = L.marker([loc.lat, loc.lon]).addTo(map);
+
+            marker.on('click', function() {
+                setSelectedLocation(id);
+            });
+
+            mapMarkers[id] = marker;
+        });
+
+        // select default location (mid-channel) and show its tooltip + data
+        setSelectedLocation(currentLocationId);
+    }
+
+    // ---- HIGH RESOLUTION SCREENSHOT + EMAIL ----
+    function downloadImageAndCreateEmail() {
+        var card = document.getElementById("forecast-card");
+
+        html2canvas(card, {
+            scale: 1.5,
+            backgroundColor: "#ffffff",
+            useCORS: true
+        }).then(function(canvas) {
+            canvas.toBlob(function (blob) {
+                if (blob) {
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement("a");
+                    a.href = url;
+                    a.download = "portsmouth-jersey-forecast.png";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+
+                var subject = "Portsmouth to Jersey 5-Day Weather Forecast";
+                var body =
+"Dear Amazon Team,\n\n" +
+"Please find below the latest 5-day weather and sea conditions forecast for the " +
+"Portsmouth to Jersey route (including today). The table shows the highest forecast wind speeds, " +
+"wave and swell heights and indicative sea state for morning, midday and overnight periods at the selected forecast point along the route.\n\n" +
+"This forecast is provided for general guidance only.\n\n" +
+"<<insert forecast table here>> \n\n" +
+"Kind regards,\n\n" +
+"";
+
+                window.location.href =
+                    "mailto:?subject=" + encodeURIComponent(subject) +
+                    "&body=" + encodeURIComponent(body);
+            });
+        }).catch(function(err) {
+            console.error(err);
+            alert("There was a problem creating the image. Please try again.");
+        });
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", loadForecast);
+    document.getElementById("email-btn").addEventListener("click", downloadImageAndCreateEmail);
+
+    // Initialise map (this will also set default location and load its forecast)
+    initMap();
+</script>
+
+</body>
+</html>
