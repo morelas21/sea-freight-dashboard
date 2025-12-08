@@ -30,6 +30,13 @@
         .subtitle {
             font-size: 0.9rem;
             color: #6b7280;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .note {
+            font-size: 0.8rem;
+            color: #4b5563;
             margin-bottom: 1rem;
             text-align: center;
         }
@@ -43,10 +50,23 @@
             margin: 0 auto;
         }
 
-        #map {
-            width: 100%;
-            height: 220px;
+        .map-row {
+            display: flex;
+            gap: 12px;
             margin-bottom: 12px;
+        }
+
+        .map-info {
+            width: 33%;
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 0.9rem;
+        }
+
+        #map {
+            width: 67%;
+            height: 220px;
             border-radius: 8px;
             overflow: hidden;
         }
@@ -88,6 +108,19 @@
         .timestamp {
             font-size: 0.8rem;
             color: #4b5563;
+        }
+
+        .profile-label {
+            font-size: 0.8rem;
+            color: #4b5563;
+        }
+
+        select {
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            font-size: 0.85rem;
+            background-color: #ffffff;
         }
 
         table {
@@ -155,36 +188,12 @@
         .sources a:hover {
             text-decoration: underline;
         }
-
-        .map-row {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .map-info {
-            width: 33%;
-            background: #f3f4f6;
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 0.9rem;
-        }
-
-        #map {
-            width: 67%;
-            height: 220px;
-            border-radius: 8px;
-            overflow: hidden;
-        }
     </style>
 </head>
 <body>
 
 <h1>Portsmouth → Jersey</h1>
-<h1>5-Day Weather Forecast</h1>
-
-<div style="text-align:center; font-size:1.5rem; color:#374151; margin-top:4px; margin-bottom:12px;">
-</div>
+<h1>5-Day Weather &amp; Sea Conditions</h1>
 
 <div class="subtitle">
     Time windows used in this table:<br>
@@ -193,13 +202,18 @@
     <strong>Overnight:</strong> 18:00–05:59 (includes 18:00–23:59 on the same date and 00:00–05:59 of the following date)
 </div>
 
+<div class="note">
+    Risk levels are indicative only and based on simple operational guidance for the selected vessel profile
+    (freight / RoPax passenger / high-speed). They do <strong>not</strong> replace the master’s or port’s decision.
+</div>
+
 <div class="card" id="forecast-card">
     <div class="map-row">
         <div class="map-info">
             <div id="selected-point-name"></div>
             <div id="selected-point-coords"></div>
             <div style="margin-top:6px; font-size:0.8rem; color:#6b7280;">
-                Click a point on the map to update the forecast.
+                Click a point on the map to update the forecast (Portsmouth, mid-Channel or St Helier approaches).
             </div>
         </div>
 
@@ -214,6 +228,12 @@
             </div>
         </div>
         <div class="controls-right">
+            <label for="profile-select" class="profile-label">Vessel profile:</label>
+            <select id="profile-select">
+                <option value="freight">Freight – Caesarea Trader type</option>
+                <option value="ropax">RoPax – Stena Vinga type</option>
+                <option value="hsc">High-speed – Levante / Tarifa Jet type</option>
+            </select>
             <button id="email-btn" disabled>Download table &amp; create email</button>
         </div>
     </div>
@@ -229,7 +249,7 @@
             <th>Wind (highest in period)</th>
             <th>Waves &amp; swell (highest in period)</th>
             <th>Sea state</th>
-            <th>Risk</th>
+            <th>Risk (selected vessel profile)</th>
         </tr>
         </thead>
         <tbody id="forecast-body"></tbody>
@@ -279,21 +299,45 @@
         }
     };
 
+    // Vessel profiles – aligned with internal Python thresholds
+    // (simplified into three operational types).
+    var VESSEL_PROFILES = {
+        freight: {
+            id: "freight",
+            label: "Freight – Caesarea Trader type",
+            windSafe: 25.0,
+            windRed: 40.0,
+            seaSafe: 2.0,
+            seaRed: 4.5
+        },
+        ropax: {
+            id: "ropax",
+            label: "RoPax – Stena Vinga type",
+            windSafe: 22.0,
+            windRed: 35.0,
+            seaSafe: 2.0,
+            seaRed: 3.0
+        },
+        hsc: {
+            id: "hsc",
+            label: "High-speed – Levante / Tarifa Jet type",
+            windSafe: 20.0,
+            windRed: 30.0,
+            seaSafe: 1.5,
+            seaRed: 2.5
+        }
+    };
+
     var currentLocationId = "midchannel";
+    var currentProfileId = "freight";
 
     function getCurrentLocation() {
         return LOCATIONS[currentLocationId];
     }
 
-    var WIND_SAFE_MAX_DAY = 12;
-    var WAVE_SAFE_MAX_DAY = 1.0;
-    var WIND_RED_MIN_DAY  = 25;
-    var WAVE_RED_MIN_DAY  = 3.0;
-
-    var WIND_SAFE_MAX_OVN = 12;
-    var WAVE_SAFE_MAX_OVN = 1.0;
-    var WIND_RED_MIN_OVN  = 20;
-    var WAVE_RED_MIN_OVN  = 2.0;
+    function getCurrentProfile() {
+        return VESSEL_PROFILES[currentProfileId];
+    }
 
     var DAYS = 5;
 
@@ -321,28 +365,24 @@
         return { f:12, d:"Hurricane" };
     }
 
-    function riskFromWindAndWave(windKn, waveM, periodId) {
-        var safeWind, safeWave, redWind, redWave;
+    // Risk based on selected vessel profile.
+    // Mirrors Python logic: High if wind > windRed OR sea >= seaRed.
+    function riskFromWindAndWave(windKn, seaM) {
+        var profile = getCurrentProfile();
 
-        if (periodId === "overnight") {
-            safeWind = WIND_SAFE_MAX_OVN;
-            safeWave = WAVE_SAFE_MAX_OVN;
-            redWind  = WIND_RED_MIN_OVN;
-            redWave  = WAVE_RED_MIN_OVN;
-        } else {
-            safeWind = WIND_SAFE_MAX_DAY;
-            safeWave = WAVE_SAFE_MAX_DAY;
-            redWind  = WIND_RED_MIN_DAY;
-            redWave  = WAVE_RED_MIN_DAY;
+        if (windKn == null || seaM == null) {
+            return { lvl: "", txt: "n/a" };
         }
 
-        if (windKn > redWind || waveM > redWave) {
-            return { lvl: "red",   txt: "High – disruption likely" };
+        if (windKn > profile.windRed || seaM >= profile.seaRed) {
+            return { lvl: "red", txt: "High – disruption likely" };
         }
-        if (windKn <= safeWind && waveM <= safeWave) {
-            return { lvl: "safe",  txt: "Low – normal operations" };
+
+        if (windKn <= profile.windSafe && seaM <= profile.seaSafe) {
+            return { lvl: "safe", txt: "Low – normal operations" };
         }
-        return { lvl: "amber",     txt: "Moderate – possible delay" };
+
+        return { lvl: "amber", txt: "Moderate – possible delay" };
     }
 
     function bearingToCompass(deg) {
@@ -381,9 +421,11 @@
         var tbody = document.getElementById("forecast-body");
         var errorDiv = document.getElementById("error-message");
         var loc = getCurrentLocation();
+        var profile = getCurrentProfile();
 
         document.getElementById("selected-point-name").innerHTML =
-            "<strong>Selected forecast point:</strong><br>" + loc.name;
+            "<strong>Selected forecast point:</strong><br>" + loc.name +
+            "<br><br><strong>Vessel profile:</strong><br>" + profile.label;
 
         document.getElementById("selected-point-coords").innerHTML =
             "<strong>Coordinates:</strong><br>" +
@@ -483,7 +525,7 @@
                     );
 
                     var bf = beaufortFromKn(windKn);
-                    var risk = riskFromWindAndWave(windKn, combinedMax, period.id);
+                    var risk = riskFromWindAndWave(windKn, combinedMax);
 
                     var rowClass = "";
                     if (previousDate !== null && previousDate !== dateKey) {
@@ -628,16 +670,19 @@
                     URL.revokeObjectURL(url);
                 }
 
-                var subject = "Portsmouth to Jersey 5-Day Weather Forecast";
+                var profile = getCurrentProfile();
+
+                var subject = "Portsmouth to Jersey 5-Day Weather & Sea Forecast";
                 var body =
 "Dear Amazon Team,\n\n" +
 "Please find below the latest 5-day weather and sea conditions forecast for the " +
 "Portsmouth to Jersey route (including today). The table shows the highest forecast wind speeds, " +
 "wave and swell heights and indicative sea state for morning, midday and overnight periods at the selected forecast point along the route.\n\n" +
-"This forecast is provided for general guidance only.\n\n" +
-"<<insert forecast table here>> \n\n" +
-"Kind regards,\n\n" +
-"";
+"Risk levels are based on a simple internal model for the selected vessel profile:\n" +
+"  • " + profile.label + "\n\n" +
+"This forecast is provided for general guidance only and does not replace operational or safety decisions made by DFDS or the ports.\n\n" +
+"<<insert forecast table here>>\n\n" +
+"Kind regards,\n\n";
 
                 window.location.href =
                     "mailto:?subject=" + encodeURIComponent(subject) +
@@ -649,8 +694,15 @@
         });
     }
 
+    // ---- EVENT BINDINGS ----
+
     document.getElementById("refresh-btn").addEventListener("click", loadForecast);
     document.getElementById("email-btn").addEventListener("click", downloadImageAndCreateEmail);
+
+    document.getElementById("profile-select").addEventListener("change", function (e) {
+        currentProfileId = e.target.value;
+        loadForecast();
+    });
 
     initMap();
 </script>
