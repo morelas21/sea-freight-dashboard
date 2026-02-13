@@ -230,9 +230,9 @@
         <div class="controls-right">
             <label for="profile-select" class="profile-label">Vessel profile:</label>
             <select id="profile-select">
+                <option value="ropax" selected>RoPax – Stena Vinga</option>
                 <option value="freight">Freight – Caesarea Trader</option>
                 <option value="freight">Freight – Arrow</option>
-                <option value="ropax" selected>RoPax – Stena Vinga</option>
             </select>
             <button id="email-btn" disabled>Download table &amp; create email</button>
         </div>
@@ -304,7 +304,15 @@
     var VESSEL_PROFILES = {
         freight: {
             id: "freight",
-            label: "Freight – Caesarea Trader type",
+            label: "Freight – Caesarea Trader",
+            windSafe: 25.0,
+            windRed: 40.0,
+            seaSafe: 2.0,
+            seaRed: 4.5
+        },
+         freight: {
+            id: "freight",
+            label: "Freight – Arrow",
             windSafe: 25.0,
             windRed: 40.0,
             seaSafe: 2.0,
@@ -312,7 +320,7 @@
         },
         ropax: {
             id: "ropax",
-            label: "RoPax – Stena Vinga type",
+            label: "RoPax – Stena Vinga",
             windSafe: 22.0,
             windRed: 35.0,
             seaSafe: 2.0,
@@ -669,7 +677,7 @@
 "Dear Amazon Team,\n\n" +
 "Please find below the latest 5-day weather and sea forecast for the Portsmouth to Jersey route.\n\n" +
 "The table summarises the highest expected wind speeds, wave and swell heights and indicative sea state for morning, midday and overnight periods at the selected forecast point.\n\n" +
-"The risk indication reflects typical operating parameters for:\n" + profile.label + "\n\n" +
+"The risk indication reflects typical operating parameters for + profile.label + "\n\n" +
 "This information is provided for general guidance only. Final operational decisions remain with the vessel master and port authorities.\n\n" +
 "<<insert forecast table here>>\n\n" +
 "Kind regards,\n\n";
@@ -699,6 +707,7 @@
 
 </body>
 </html>
+
 
 
 
