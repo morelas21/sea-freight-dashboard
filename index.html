@@ -230,9 +230,9 @@
         <div class="controls-right">
             <label for="profile-select" class="profile-label">Vessel profile:</label>
             <select id="profile-select">
-                <option value="ropax" selected>Stena Vinga - RoRo Pax</option>
-                <option value="freight">Caesarea Trader - RoRo Freight</option>
-                <option value="freight">Arrow - RoRo Freight</option>
+                <option value="ropax" selected>Stena Vinga (RoRo Pax)</option>
+                <option value="freight">Caesarea Trader (RoRo Freight)</option>
+                <option value="freight">Arrow (RoRo Freight)</option>
             </select>
             <button id="email-btn" disabled>Download table &amp; create email</button>
         </div>
@@ -304,7 +304,7 @@
     var VESSEL_PROFILES = {
         freight: {
             id: "freight",
-            label: "Caesarea Trader - RoRo Freight",
+            label: "Caesarea Trader (RoRo Freight)",
             windSafe: 25.0,
             windRed: 40.0,
             seaSafe: 2.0,
@@ -312,7 +312,7 @@
         },
          freight: {
             id: "freight",
-            label: "Arrow - RoRo Freight",
+            label: "Arrow (RoRo Freight)",
             windSafe: 25.0,
             windRed: 40.0,
             seaSafe: 2.0,
@@ -320,7 +320,7 @@
         },
         ropax: {
             id: "ropax",
-            label: "Stena Vinga - RoRo Pax",
+            label: "Stena Vinga (RoRo Pax)",
             windSafe: 22.0,
             windRed: 35.0,
             seaSafe: 2.0,
@@ -679,7 +679,7 @@
 
 Please find the latest 5-day weather and sea forecast for the Portsmouth to Jersey route.
 
-The table summarises the highest expected wind speeds, wave and swell heights and indicative sea state for morning, midday and overnight periods at ${loc.name}.
+The table summarises the highest expected wind speeds, wave and swell heights and indicative sea state for morning, midday and overnight periods at the ${loc.name}.
 
 The risk indication reflects typical operating parameters for ${profile.label}.
 
@@ -715,6 +715,7 @@ Kind regards,
 
 </body>
 </html>
+
 
 
 
