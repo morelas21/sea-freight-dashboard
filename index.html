@@ -673,14 +673,21 @@
                 var profile = getCurrentProfile();
 
                 var subject = "Portsmouth to Jersey 5-Day Weather & Sea Forecast";
-                var body =
-"Dear Amazon Team,\n\n" +
-"Please find below the latest 5-day weather and sea forecast for the Portsmouth to Jersey route.\n\n" +
-"The table summarises the highest expected wind speeds, wave and swell heights and indicative sea state for morning, midday and overnight periods at the selected forecast point.\n\n" +
-"The risk indication reflects typical operating parameters for + profile.label \n\n" +
-"This information is provided for general guidance only. Final operational decisions remain with the vessel master and port authorities.\n\n" +
-"<<insert forecast table here>>\n\n" +
-"Kind regards,\n\n";
+             var body =                  
+`Dear Amazon Team,
+
+Please find below the latest 5-day weather and sea forecast for the Portsmouth to Jersey route.
+
+The table summarises the highest expected wind speeds, wave and swell heights and indicative sea state for morning, midday and overnight periods at the selected forecast point.
+
+The risk indication reflects typical operating parameters for ${profile.label}.
+
+This information is provided for general guidance only. Final operational decisions remain with the vessel master and port authorities.
+
+<<insert forecast table here>>
+
+Kind regards,
+`;
 
                 window.location.href =
                     "mailto:?subject=" + encodeURIComponent(subject) +
@@ -707,6 +714,7 @@
 
 </body>
 </html>
+
 
 
 
