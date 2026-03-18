@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>Portsmouth → Jersey – 5-Day Boat Weather</title>
 
-    <!-- Leaflet CSS -->
     <link
         rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -203,8 +202,8 @@
 </div>
 
 <div class="note">
-    Risk levels are indicative only and based on simple operational guidance for the selected vessel profile
-    (RoRo Freight / RoRoPax). They do <strong>not</strong> replace the master’s or port’s decision.
+    Risk levels are indicative only and based on simple operational guidance for the selected vessel profile.
+    They do <strong>not</strong> replace the master’s or port’s decision.
 </div>
 
 <div class="card" id="forecast-card">
@@ -213,7 +212,7 @@
             <div id="selected-point-name"></div>
             <div id="selected-point-coords"></div>
             <div style="margin-top:6px; font-size:0.8rem; color:#6b7280;">
-                Click a point on the map to update the forecast (Portsmouth, mid-Channel or St Helier approaches).
+                Click a point on the map to update the forecast view (Portsmouth, mid-Channel or St Helier approaches).
             </div>
         </div>
 
@@ -231,8 +230,8 @@
             <label for="profile-select" class="profile-label">Vessel profile:</label>
             <select id="profile-select">
                 <option value="ropax" selected>Stena Vinga (RoRo Pax)</option>
-                <option value="freight">Caesarea Trader (RoRo Freight)</option>
-                <option value="freight">Arrow (RoRo Freight)</option>
+                <option value="caesarea">Caesarea Trader (RoRo Freight)</option>
+                <option value="arrow">Arrow (RoRo Freight)</option>
             </select>
             <button id="email-btn" disabled>Download table &amp; create email</button>
         </div>
@@ -254,10 +253,8 @@
         </thead>
         <tbody id="forecast-body"></tbody>
     </table>
-
 </div>
 
-<!-- Reference links -->
 <div class="sources">
     <strong>Useful official links:</strong>
     <ul>
@@ -276,8 +273,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 <script>
-    // ---- CONFIGURATION ----
-
     var LOCATIONS = {
         portsmouth: {
             id: "portsmouth",
@@ -299,24 +294,22 @@
         }
     };
 
-    // Vessel profiles – aligned with internal Python thresholds
-    // (simplified into three operational types).
     var VESSEL_PROFILES = {
-        freight: {
-            id: "freight",
+        caesarea: {
+            id: "caesarea",
             label: "Caesarea Trader (RoRo Freight)",
             windSafe: 25.0,
             windRed: 40.0,
             seaSafe: 2.0,
-            seaRed: 4.5
+            seaRed: 3.5
         },
-         freight: {
-            id: "freight",
+        arrow: {
+            id: "arrow",
             label: "Arrow (RoRo Freight)",
             windSafe: 25.0,
             windRed: 40.0,
             seaSafe: 2.0,
-            seaRed: 4.5
+            seaRed: 3.5
         },
         ropax: {
             id: "ropax",
@@ -330,6 +323,16 @@
 
     var currentLocationId = "midchannel";
     var currentProfileId = "ropax";
+    var DAYS = 5;
+
+    var PERIODS = [
+        { id: "morning", label: "Morning", start: 6, end: 12 },
+        { id: "midday", label: "Midday", start: 12, end: 18 },
+        { id: "overnight", label: "Overnight", start: 18, end: 30 }
+    ];
+
+    var map;
+    var mapMarkers = {};
 
     function getCurrentLocation() {
         return LOCATIONS[currentLocationId];
@@ -339,39 +342,31 @@
         return VESSEL_PROFILES[currentProfileId];
     }
 
-    var DAYS = 5;
-
-    var PERIODS = [
-        { id: "morning",   label: "Morning",  start:  6, end: 12 },
-        { id: "midday",    label: "Midday",   start: 12, end: 18 },
-        { id: "overnight", label: "Overnight", start: 18, end: 30 }
-    ];
-
-    function knToMph(kn) { return kn * 1.15078; }
-
-    function beaufortFromKn(kn) {
-        if (kn < 1)  return { f:0, d:"Calm" };
-        if (kn < 4)  return { f:1, d:"Light air" };
-        if (kn < 7)  return { f:2, d:"Light breeze" };
-        if (kn < 11) return { f:3, d:"Gentle breeze" };
-        if (kn < 17) return { f:4, d:"Moderate breeze" };
-        if (kn < 22) return { f:5, d:"Fresh breeze" };
-        if (kn < 28) return { f:6, d:"Strong breeze" };
-        if (kn < 34) return { f:7, d:"Near gale" };
-        if (kn < 41) return { f:8, d:"Gale" };
-        if (kn < 48) return { f:9, d:"Strong gale" };
-        if (kn < 56) return { f:10, d:"Storm" };
-        if (kn < 64) return { f:11, d:"Violent storm" };
-        return { f:12, d:"Hurricane" };
+    function knToMph(kn) {
+        return kn * 1.15078;
     }
 
-    // Risk based on selected vessel profile.
-    // Mirrors Python logic: High if wind > windRed OR sea >= seaRed.
+    function beaufortFromKn(kn) {
+        if (kn < 1) return { f: 0, d: "Calm" };
+        if (kn < 4) return { f: 1, d: "Light air" };
+        if (kn < 7) return { f: 2, d: "Light breeze" };
+        if (kn < 11) return { f: 3, d: "Gentle breeze" };
+        if (kn < 17) return { f: 4, d: "Moderate breeze" };
+        if (kn < 22) return { f: 5, d: "Fresh breeze" };
+        if (kn < 28) return { f: 6, d: "Strong breeze" };
+        if (kn < 34) return { f: 7, d: "Near gale" };
+        if (kn < 41) return { f: 8, d: "Gale" };
+        if (kn < 48) return { f: 9, d: "Strong gale" };
+        if (kn < 56) return { f: 10, d: "Storm" };
+        if (kn < 64) return { f: 11, d: "Violent storm" };
+        return { f: 12, d: "Hurricane" };
+    }
+
     function riskFromWindAndWave(windKn, seaM) {
         var profile = getCurrentProfile();
 
         if (windKn == null || seaM == null) {
-            return { lvl: "", txt: "n/a" };
+            return { lvl: "amber", txt: "n/a" };
         }
 
         if (windKn > profile.windRed || seaM >= profile.seaRed) {
@@ -387,15 +382,15 @@
 
     function bearingToCompass(deg) {
         if (deg == null || isNaN(deg)) return "n/a";
-        var dirs = ["N","NE","E","SE","S","SW","W","NW"];
+        var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
         return dirs[Math.round(deg / 45) % 8] + " (" + Math.round(deg) + "°)";
     }
 
     function seaStateFromWaveHeight(h) {
-        if (h < 0.5)  return "Calm / slight";
+        if (h < 0.5) return "Calm / slight";
         if (h < 1.25) return "Slight";
-        if (h < 2.5)  return "Moderate";
-        if (h < 4.0)  return "Rough";
+        if (h < 2.5) return "Moderate";
+        if (h < 4.0) return "Rough";
         return "Very rough";
     }
 
@@ -410,8 +405,11 @@
     }
 
     function periodForHour(hour) {
-        for (var i = 0; i < PERIODS.length; i++)
-            if (hour >= PERIODS[i].start && hour < PERIODS[i].end) return PERIODS[i].id;
+        for (var i = 0; i < PERIODS.length; i++) {
+            if (hour >= PERIODS[i].start && hour < PERIODS[i].end) {
+                return PERIODS[i].id;
+            }
+        }
         return null;
     }
 
@@ -429,7 +427,7 @@
 
         document.getElementById("selected-point-coords").innerHTML =
             "<strong>Coordinates:</strong><br>" +
-            loc.lat.toFixed(3) + "° N, " + Math.abs(loc.lon.toFixed(3)) +
+            loc.lat.toFixed(3) + "° N, " + Math.abs(loc.lon).toFixed(3) +
             "° " + (loc.lon < 0 ? "W" : "E");
 
         btn.disabled = true;
@@ -452,16 +450,25 @@
                 "&wind_speed_unit=kn&timezone=auto&forecast_days=" + DAYS;
 
             var responses = await Promise.all([fetch(marineUrl), fetch(windUrl)]);
+
+            if (!responses[0].ok || !responses[1].ok) {
+                throw new Error("Forecast API request failed");
+            }
+
             var marine = await responses[0].json();
             var wind = await responses[1].json();
 
-            var times = marine.hourly.time;
-            var waveArr = marine.hourly.wave_height;
-            var swellArr = marine.hourly.swell_wave_height;
-            var waveDirArr = marine.hourly.wave_direction;
-            var swellDirArr = marine.hourly.swell_wave_direction;
-            var windArr = wind.hourly.windspeed_10m;
-            var windDirArr = wind.hourly.winddirection_10m;
+            if (!marine.hourly || !wind.hourly) {
+                throw new Error("Forecast data missing hourly values");
+            }
+
+            var times = marine.hourly.time || [];
+            var waveArr = marine.hourly.wave_height || [];
+            var swellArr = marine.hourly.swell_wave_height || [];
+            var waveDirArr = marine.hourly.wave_direction || [];
+            var swellDirArr = marine.hourly.swell_wave_direction || [];
+            var windArr = wind.hourly.windspeed_10m || [];
+            var windDirArr = wind.hourly.winddirection_10m || [];
 
             var grouped = {};
 
@@ -470,14 +477,18 @@
                 var dateKey = times[i].slice(0, 10);
                 var windowHour = getWindowHour(t);
                 var periodId = periodForHour(windowHour);
+
                 if (!periodId) continue;
 
                 if (!grouped[dateKey]) grouped[dateKey] = {};
                 if (!grouped[dateKey][periodId]) {
                     grouped[dateKey][periodId] = {
-                        windMax: null, windDir: null,
-                        waveMax: null, swellMax: null,
-                        waveDir: null, swellDir: null
+                        windMax: null,
+                        windDir: null,
+                        waveMax: null,
+                        swellMax: null,
+                        waveDir: null,
+                        swellDir: null
                     };
                 }
 
@@ -486,7 +497,7 @@
                 var wh = waveArr[i];
                 var sw = swellArr[i];
 
-                if (g.windMax === null || w > g.windMax) {
+                if (w != null && (g.windMax === null || w > g.windMax)) {
                     g.windMax = w;
                     g.windDir = windDirArr[i];
                 }
@@ -503,8 +514,9 @@
             }
 
             var previousDate = null;
+            var sortedDateKeys = Object.keys(grouped).sort().slice(0, DAYS);
 
-            Object.keys(grouped).sort().slice(0, DAYS).forEach(function(dateKey) {
+            sortedDateKeys.forEach(function(dateKey) {
                 var dateLabel = new Date(dateKey + "T00:00:00").toLocaleDateString("en-GB", {
                     weekday: "short",
                     day: "2-digit",
@@ -521,7 +533,7 @@
 
                     var combinedMax = Math.max(
                         waveMax != null ? waveMax : 0,
-                        swell   != null ? swell   : 0
+                        swell != null ? swell : 0
                     );
 
                     var bf = beaufortFromKn(windKn);
@@ -536,12 +548,14 @@
                     var waveText = (waveMax != null) ? waveMax.toFixed(2) + " m" : "n/a";
                     var swellText = (swell != null) ? swell.toFixed(2) + " m" : "n/a";
 
-                    var firstLine, secondLine;
+                    var firstLine;
+                    var secondLine;
+
                     if ((swell || 0) > (waveMax || 0)) {
-                        firstLine  = "Swell: " + swellText;
+                        firstLine = "Swell: " + swellText;
                         secondLine = "Wave: " + waveText;
                     } else {
-                        firstLine  = "Wave: " + waveText;
+                        firstLine = "Wave: " + waveText;
                         secondLine = "Swell: " + swellText;
                     }
 
@@ -549,7 +563,8 @@
                         <tr class="${rowClass}">
                             <td><strong>${dateLabel}</strong></td>
                             <td>${period.label}</td>
-                            <td>Portsmouth → Jersey<br>
+                            <td>
+                                Portsmouth → Jersey<br>
                                 <span style="font-size:0.75rem;color:#6b7280;">
                                     Forecast point: ${loc.name}
                                 </span>
@@ -574,9 +589,12 @@
 
             updateTimestamp();
 
-            if (tbody.children.length > 0) {
-                emailBtn.disabled = false;
+            if (tbody.children.length === 0) {
+                throw new Error("No forecast rows were produced");
             }
+
+            emailBtn.disabled = false;
+
         } catch (error) {
             console.error(error);
             errorDiv.textContent = "Unable to load forecast data.";
@@ -587,18 +605,13 @@
         btn.textContent = "Refresh forecast";
     }
 
-    // ---- MAP INITIALISATION (Leaflet) ----
-
-    var map;
-    var mapMarkers = {};
-
     function setSelectedLocation(id) {
         currentLocationId = id;
 
         Object.keys(mapMarkers).forEach(function(key) {
-            var m = mapMarkers[key];
-            if (m.getTooltip && m.getTooltip()) {
-                m.unbindTooltip();
+            var marker = mapMarkers[key];
+            if (marker.getTooltip && marker.getTooltip()) {
+                marker.unbindTooltip();
             }
         });
 
@@ -606,7 +619,7 @@
         var marker = mapMarkers[id];
 
         marker.bindTooltip(loc.name, {
-            direction: 'left',
+            direction: "left",
             permanent: true,
             sticky: false,
             offset: L.point(-10, 0),
@@ -622,7 +635,7 @@
             [51.5, -0.5]
         );
 
-        map = L.map('map', {
+        map = L.map("map", {
             maxBounds: bounds,
             maxBoundsViscosity: 1.0
         }).setView([49.8, -2.0], 6);
@@ -630,15 +643,15 @@
         map.setMinZoom(5);
         map.setMaxZoom(11);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
 
         Object.keys(LOCATIONS).forEach(function(id) {
             var loc = LOCATIONS[id];
             var marker = L.marker([loc.lat, loc.lon]).addTo(map);
 
-            marker.on('click', function() {
+            marker.on("click", function() {
                 setSelectedLocation(id);
             });
 
@@ -648,8 +661,6 @@
         setSelectedLocation(currentLocationId);
     }
 
-    // ---- IMAGE EXPORT & EMAIL TEMPLATE ----
-
     function downloadImageAndCreateEmail() {
         var card = document.getElementById("forecast-card");
 
@@ -658,7 +669,7 @@
             backgroundColor: "#ffffff",
             useCORS: true
         }).then(function(canvas) {
-            canvas.toBlob(function (blob) {
+            canvas.toBlob(function(blob) {
                 if (blob) {
                     var url = URL.createObjectURL(blob);
                     var a = document.createElement("a");
@@ -674,7 +685,7 @@
                 var loc = getCurrentLocation();
 
                 var subject = "Portsmouth to Jersey 5-Day Weather & Sea Forecast";
-             var body =                  
+                var body =
 `Dear Amazon Team,
 
 Please find the latest 5-day weather and sea forecast for the Portsmouth to Jersey route.
@@ -700,12 +711,10 @@ Kind regards,
         });
     }
 
-    // ---- EVENT BINDINGS ----
-
     document.getElementById("refresh-btn").addEventListener("click", loadForecast);
     document.getElementById("email-btn").addEventListener("click", downloadImageAndCreateEmail);
 
-    document.getElementById("profile-select").addEventListener("change", function (e) {
+    document.getElementById("profile-select").addEventListener("change", function(e) {
         currentProfileId = e.target.value;
         loadForecast();
     });
@@ -715,25 +724,3 @@ Kind regards,
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
